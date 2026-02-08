@@ -1,196 +1,77 @@
-# Mayfly - AI‑Assisted Archive Relearning (MVP)
+# Mayfly
 
-## Purpose
+A quick-and-dirty CLI that scans a directory of old audio recordings and generates memory-prompt files — starting key, tempo, and draft lyrics — so you can re-learn forgotten songs in minutes rather than hours.
 
-Create the **smallest thing that could possibly work** to help us re‑learn old tracks we’ve forgotten how to play.
+## Install
 
-This is a deliberately minimal, disposable tool:
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-* a **command‑line utility**
-* run manually, on demand
-* produces **Markdown files** as memory prompts
+## Usage
 
-The tool exists to jog memory, not to be a long‑lived system.
+```sh
+# Scan a whole directory
+python main.py /path/to/audio
 
-## Core Use Case
+# Process a single file
+python main.py /path/to/song.mp3
 
-> “I point a tool at a directory of old audio files and quickly get enough information back to remember how the song goes.”
+# Re-run only specific steps (key, tempo, lyrics)
+python main.py /path/to/song.mp3 --only lyrics
+python main.py /path/to/song.mp3 --only key,tempo
 
-The output should:
+# Force regeneration of existing output
+python main.py /path/to/audio --force
 
-* reduce blank‑page paralysis
-* remind us of key, tempo, and lyrical cues
-* tell us *where to listen* if something is uncertain
+# Write output to a different directory
+python main.py /path/to/audio -o /path/to/output
+```
 
-Once a track is re‑learned, the output may never be used again.
+By default, files that already have output are skipped. Use `--force` to regenerate them. Using `--only` always re-processes the selected steps, preserving the rest from the existing output.
 
-## Constraints & Assumptions
+## What It Produces
 
-* Recordings span decades
-* Mixed quality (studio, demo, rehearsal, live)
-* **No stems available**
-* Tonal, song‑based music
-* Imperfect results are acceptable
+One `.txt` file per audio file, containing:
 
-## MVP Shape (KISS / YAGNI)
+- **YAML frontmatter** — source file path, starting key (with confidence), tempo BPM (with confidence)
+- **Markdown body** — key/tempo summary and timestamped draft lyrics
 
-### Execution Model
+Low-confidence results are flagged with ⚠️ so you know where to listen more carefully.
 
-* A **command‑line program**
-* Accepts a single audio file or recursively scans a directory
-* Processes each file independently
-* Supports selective re‑runs via `--only` (e.g. `--only lyrics`)
-* Skips files with existing output unless `--force` is used
-* Emits **one `.txt` file (Markdown‑formatted) per audio file**
+### Example Output
 
-No database. No UI. No service. No persistence beyond files on disk.
+```
+---
+source_file: demos/Old Song.mp3
+starting_key: A minor
+starting_key_confidence: medium
+tempo_bpm: 120.5
+tempo_confidence: medium
+starting_key_alternate: C major
+---
 
-## Minimal Analysis Pipeline
+# Old Song
 
-Each step is best‑effort. Failure of any step must not break the tool.
+**Key:** A minor
+**Possible alternate:** C major
+**Tempo:** 120.5 BPM
 
-### 1. Discovery
+## Draft Lyrics
 
-* Recursively find audio files
-* Supported formats: wav, mp3, aiff (others best‑effort)
+[0:00] Here are some words that were transcribed
+[0:08] And this line was less certain  ⚠️
+```
 
-### 2. Starting Key Detection
+## Supported Formats
 
-* Analyse only the first 15–30 seconds
-* Output:
+wav, mp3, aiff — others are attempted best-effort.
 
-  * starting key
-  * confidence
-  * optional alternate (e.g. relative major/minor)
+## Limitations
 
-### 3. Tempo Detection
-
-* Estimate BPM
-* Output confidence
-
-### 4. Lyrics Draft
-
-* Best‑effort transcription from full mix
-* Time‑stamped lines
-* Explicit markers for low‑confidence or unintelligible spans
-
-## Libraries & Models (MVP Choices)
-
-The MVP prioritises **minimum effort and maximum leverage**. All choices are made to reduce glue code and setup friction.
-
-### Language
-
-* **Python**
-* Single‑script mindset (not a framework or package)
-
-### Audio I/O & Musical Analysis
-
-* `librosa`
-
-  * Audio loading
-  * Tempo (BPM) estimation
-  * Chroma features for starting‑key detection
-* `numpy`
-* `soundfile`
-
-Rationale:
-
-* Mature and well‑understood
-* One import away from useful musical features
-* Entirely sufficient for *starting key only* analysis
-
-### Lyrics Transcription
-
-* **`faster‑whisper`**
-
-  * Singing‑tolerant speech‑to‑text
-  * Time‑stamped segments
-  * Best‑effort transcription on full mixes
-
-Model guidance:
-
-* Prefer `small` or `medium`
-* `large` is unnecessary for MVP
-
-### Output Generation
-
-* `pyyaml`
-
-  * YAML frontmatter generation
-* Plain string‑based Markdown output
-
-  * No templating engine
-  * No schema enforcement
-
-### Explicitly Deferred / Excluded
-
-The following are intentionally **not** part of the MVP:
-
-* Source separation (e.g. Demucs)
-* Chord‑detection models
-* Databases or persistence layers
-* Config files or plugin systems
-* Training or fine‑tuning models
-* GPU‑only dependencies
-
-## Output Format
-
-### One Markdown File per Track
-
-Markdown is the only output.
-
-The file should be:
-
-* human‑readable
-* easy to skim
-* easy to edit or delete
-
-### Frontmatter (MVP Only)
-
-YAML frontmatter containing only:
-
-* source_file
-* starting_key (+ confidence, optional alternate)
-* tempo_bpm (+ confidence)
-
-### Markdown Body
-
-* Draft lyrics with timestamps
-* Low‑confidence spans clearly marked
-* Optional free‑form notes added manually if desired
-
-## Confidence & Uncertainty
-
-Confidence is a core feature.
-
-The tool must clearly indicate:
-
-* when an output is uncertain
-* *where* in the track uncertainty occurs (timestamps)
-
-Confidence exists solely to direct human listening effort.
-
-The tool should prefer:
-
-* clearly flagging uncertainty
-* over pretending accuracy
-
-## Non‑Goals (Explicit)
-
-This MVP does **not** aim to:
-
-* be interactive
-* support play‑along or rehearsal modes
-* provide perfect transcription
-* persist state or corrections
-* scale beyond local, manual use
-
-## Success Criteria
-
-The MVP is successful if:
-
-* running it on a directory of forgotten tracks
-* produces Markdown files that
-* allow us to remember how to play a song in minutes rather than hours
-
-Nothing more is required.
+- Transcription is from the **full mix** (no source separation) — expect imperfect lyrics, especially from dense mixes
+- Key detection uses only the **first ~30 seconds**, so key changes mid-song won’t be caught
+- Confidence indicators are heuristic, not ground truth
+- This is a disposable tool, not a production system
