@@ -291,6 +291,25 @@ def _parse_existing_output(out_path: Path) -> tuple[dict | None, dict | None, li
 
 # ── Pipeline Orchestration ───────────────────────────────────────────────────
 
+def _get_output_path(audio_path: Path, output_dir: Path, base_dir: Path | None) -> Path:
+    """Calculate the output path for an audio file, preserving directory structure if base_dir is set.
+    
+    Args:
+        audio_path: Path to the audio file
+        output_dir: Base directory for output files
+        base_dir: Base directory for recursive scanning; if provided, the relative path
+                  from base_dir to audio_path is preserved in the output
+    
+    Returns:
+        Path where the output text file should be written
+    """
+    if base_dir:
+        rel_path = audio_path.relative_to(base_dir)
+        return output_dir / rel_path.parent / f"{audio_path.stem}.txt"
+    else:
+        return output_dir / f"{audio_path.stem}.txt"
+
+
 def process_file(audio_path: Path, output_dir: Path,
                  steps: set[str] | None = None, base_dir: Path | None = None) -> None:
     """Run analysis pipeline steps for a single audio file.
@@ -304,12 +323,8 @@ def process_file(audio_path: Path, output_dir: Path,
     log.info("Processing: %s (steps: %s)", audio_path.name, ", ".join(sorted(steps)))
 
     # Calculate output path, preserving directory structure if base_dir is set
-    if base_dir:
-        rel_path = audio_path.relative_to(base_dir)
-        out_path = output_dir / rel_path.parent / f"{audio_path.stem}.txt"
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-    else:
-        out_path = output_dir / f"{audio_path.stem}.txt"
+    out_path = _get_output_path(audio_path, output_dir, base_dir)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Load previous results for steps we're not re-running
     prev_key, prev_tempo, prev_lyrics = _parse_existing_output(out_path)
@@ -393,12 +408,7 @@ def main() -> None:
     processed = 0
     for audio_path in audio_files:
         # Skip files that already have output unless --force or --only is used
-        # Calculate expected output path considering directory structure
-        if base_dir:
-            rel_path = audio_path.relative_to(base_dir)
-            out_path = output_dir / rel_path.parent / f"{audio_path.stem}.txt"
-        else:
-            out_path = output_dir / f"{audio_path.stem}.txt"
+        out_path = _get_output_path(audio_path, output_dir, base_dir)
 
         if out_path.exists() and not args.force and not args.only:
             log.info("Skipping (output exists): %s", audio_path.name)
