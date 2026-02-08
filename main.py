@@ -292,16 +292,24 @@ def _parse_existing_output(out_path: Path) -> tuple[dict | None, dict | None, li
 # ── Pipeline Orchestration ───────────────────────────────────────────────────
 
 def process_file(audio_path: Path, output_dir: Path,
-                 steps: set[str] | None = None) -> None:
+                 steps: set[str] | None = None, base_dir: Path | None = None) -> None:
     """Run analysis pipeline steps for a single audio file.
 
     *steps* selects which stages to run (default: all).
     Stages not in *steps* are loaded from any existing output file.
+    *base_dir* is the input directory when scanning recursively; if provided,
+    the relative path from base_dir to audio_path is preserved in the output.
     """
     steps = steps or ALL_STEPS
     log.info("Processing: %s (steps: %s)", audio_path.name, ", ".join(sorted(steps)))
 
-    out_path = output_dir / f"{audio_path.stem}.txt"
+    # Calculate output path, preserving directory structure if base_dir is set
+    if base_dir:
+        rel_path = audio_path.relative_to(base_dir)
+        out_path = output_dir / rel_path.parent / f"{audio_path.stem}.txt"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        out_path = output_dir / f"{audio_path.stem}.txt"
 
     # Load previous results for steps we're not re-running
     prev_key, prev_tempo, prev_lyrics = _parse_existing_output(out_path)
@@ -365,9 +373,11 @@ def main() -> None:
             log.warning("File may not be a supported audio format: %s", target.name)
         audio_files = [target]
         default_output_dir = target.parent
+        base_dir = None
     elif target.is_dir():
         audio_files = discover_audio_files(target)
         default_output_dir = target
+        base_dir = target
     else:
         log.error("Not a file or directory: %s", target)
         sys.exit(1)
@@ -383,13 +393,19 @@ def main() -> None:
     processed = 0
     for audio_path in audio_files:
         # Skip files that already have output unless --force or --only is used
-        out_path = output_dir / f"{audio_path.stem}.txt"
+        # Calculate expected output path considering directory structure
+        if base_dir:
+            rel_path = audio_path.relative_to(base_dir)
+            out_path = output_dir / rel_path.parent / f"{audio_path.stem}.txt"
+        else:
+            out_path = output_dir / f"{audio_path.stem}.txt"
+        
         if out_path.exists() and not args.force and not args.only:
             log.info("Skipping (output exists): %s", audio_path.name)
             skipped += 1
             continue
         try:
-            process_file(audio_path, output_dir, steps=steps)
+            process_file(audio_path, output_dir, steps=steps, base_dir=base_dir)
             processed += 1
         except Exception as exc:
             log.error("Failed to process %s: %s", audio_path.name, exc)
