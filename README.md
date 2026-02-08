@@ -39,6 +39,7 @@ Once a track is re‑learned, the output may never be used again.
 * A **command‑line program**
 * Accepts a single audio file or recursively scans a directory
 * Processes each file independently
+* Supports selective re‑runs via `--only` (e.g. `--only lyrics`)
 * Emits **one `.txt` file (Markdown‑formatted) per audio file**
 
 No database. No UI. No service. No persistence beyond files on disk.

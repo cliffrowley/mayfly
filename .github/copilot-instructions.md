@@ -37,4 +37,8 @@ Do not introduce: source separation (Demucs), chord-detection models, GPU-only d
 ```sh
 python main.py <directory-of-audio-files>
 python main.py <single-audio-file>
+python main.py <single-audio-file> --only lyrics
+python main.py <single-audio-file> --only key,tempo
 ```
+
+Use `--only` to selectively re-run pipeline steps (`key`, `tempo`, `lyrics`). Steps not listed are preserved from the existing output file.

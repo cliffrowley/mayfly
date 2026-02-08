@@ -232,15 +232,83 @@ def build_markdown(source_file: str, key_info: dict, tempo_info: dict,
     return "\n".join(parts)
 
 
+# ── Existing Output Parsing ───────────────────────────────────────────────────
+
+ALL_STEPS = {"key", "tempo", "lyrics"}
+
+
+def _parse_existing_output(out_path: Path) -> tuple[dict | None, dict | None, list[dict]]:
+    """Parse an existing output file to recover previous results.
+
+    Returns (key_info, tempo_info, lyrics).
+    """
+    key_info = {"key": "unknown", "confidence": "none", "alternate": None}
+    tempo_info = {"bpm": None, "confidence": "none"}
+    lyrics: list[dict] = []
+
+    if not out_path.is_file():
+        return key_info, tempo_info, lyrics
+
+    try:
+        text = out_path.read_text(encoding="utf-8")
+    except Exception:
+        return key_info, tempo_info, lyrics
+
+    # Parse YAML frontmatter
+    if text.startswith("---"):
+        parts = text.split("---", 2)
+        if len(parts) >= 3:
+            try:
+                fm = yaml.safe_load(parts[1])
+                if isinstance(fm, dict):
+                    key_info = {
+                        "key": fm.get("starting_key", "unknown"),
+                        "confidence": fm.get("starting_key_confidence", "none"),
+                        "alternate": fm.get("starting_key_alternate"),
+                    }
+                    tempo_info = {
+                        "bpm": fm.get("tempo_bpm"),
+                        "confidence": fm.get("tempo_confidence", "none"),
+                    }
+            except Exception:
+                pass
+
+            # Parse timestamped lyrics from body
+            body = parts[2]
+            import re
+            for m in re.finditer(r"^\[(\d+):(\d{2})\]\s*(.+?)(?:\s*⚠️)?$", body, re.MULTILINE):
+                mins, secs, line_text = int(m.group(1)), int(m.group(2)), m.group(3).strip()
+                is_low = m.group(0).rstrip().endswith("⚠️")
+                lyrics.append({
+                    "start": mins * 60 + secs,
+                    "end": 0.0,
+                    "text": line_text,
+                    "confidence": "low" if is_low else "medium",
+                })
+
+    return key_info, tempo_info, lyrics
+
+
 # ── Pipeline Orchestration ───────────────────────────────────────────────────
 
-def process_file(audio_path: Path, output_dir: Path) -> None:
-    """Run the full analysis pipeline for a single audio file."""
-    log.info("Processing: %s", audio_path.name)
+def process_file(audio_path: Path, output_dir: Path,
+                 steps: set[str] | None = None) -> None:
+    """Run analysis pipeline steps for a single audio file.
 
-    key_info = detect_key(audio_path)
-    tempo_info = detect_tempo(audio_path)
-    lyrics = transcribe_lyrics(audio_path)
+    *steps* selects which stages to run (default: all).
+    Stages not in *steps* are loaded from any existing output file.
+    """
+    steps = steps or ALL_STEPS
+    log.info("Processing: %s (steps: %s)", audio_path.name, ", ".join(sorted(steps)))
+
+    out_path = output_dir / f"{audio_path.stem}.txt"
+
+    # Load previous results for steps we're not re-running
+    prev_key, prev_tempo, prev_lyrics = _parse_existing_output(out_path)
+
+    key_info = detect_key(audio_path) if "key" in steps else prev_key
+    tempo_info = detect_tempo(audio_path) if "tempo" in steps else prev_tempo
+    lyrics = transcribe_lyrics(audio_path) if "lyrics" in steps else prev_lyrics
 
     md = build_markdown(
         source_file=str(audio_path),
@@ -249,7 +317,6 @@ def process_file(audio_path: Path, output_dir: Path) -> None:
         lyrics=lyrics,
     )
 
-    out_path = output_dir / f"{audio_path.stem}.txt"
     out_path.write_text(md, encoding="utf-8")
     log.info("  → %s", out_path)
 
@@ -265,7 +332,22 @@ def main() -> None:
         default=None,
         help="Output directory for Markdown files (default: same directory as input)",
     )
+    parser.add_argument(
+        "--only",
+        type=str,
+        default=None,
+        help="Comma-separated list of steps to run: key, tempo, lyrics (default: all)",
+    )
     args = parser.parse_args()
+
+    # Parse --only steps
+    steps = None
+    if args.only:
+        steps = {s.strip().lower() for s in args.only.split(",")}
+        invalid = steps - ALL_STEPS
+        if invalid:
+            log.error("Unknown step(s): %s (valid: key, tempo, lyrics)", ", ".join(invalid))
+            sys.exit(1)
 
     target = args.path
 
@@ -294,7 +376,7 @@ def main() -> None:
 
     for audio_path in audio_files:
         try:
-            process_file(audio_path, output_dir)
+            process_file(audio_path, output_dir, steps=steps)
         except Exception as exc:
             log.error("Failed to process %s: %s", audio_path.name, exc)
             continue
