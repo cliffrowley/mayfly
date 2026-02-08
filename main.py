@@ -399,7 +399,7 @@ def main() -> None:
             out_path = output_dir / rel_path.parent / f"{audio_path.stem}.txt"
         else:
             out_path = output_dir / f"{audio_path.stem}.txt"
-        
+
         if out_path.exists() and not args.force and not args.only:
             log.info("Skipping (output exists): %s", audio_path.name)
             skipped += 1
