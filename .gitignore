@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Mayfly output (don't commit generated markdown)
+# Uncomment if you want to ignore output:
+# *.md
+# !README.md
+
+# My local test files
+testdata/
