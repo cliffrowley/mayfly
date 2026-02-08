@@ -42,3 +42,5 @@ python main.py <single-audio-file> --only key,tempo
 ```
 
 Use `--only` to selectively re-run pipeline steps (`key`, `tempo`, `lyrics`). Steps not listed are preserved from the existing output file.
+
+By default, files with existing output are skipped. Use `--force` to regenerate them.

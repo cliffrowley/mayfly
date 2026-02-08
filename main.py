@@ -338,6 +338,11 @@ def main() -> None:
         default=None,
         help="Comma-separated list of steps to run: key, tempo, lyrics (default: all)",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-process files even if output already exists",
+    )
     args = parser.parse_args()
 
     # Parse --only steps
@@ -374,14 +379,23 @@ def main() -> None:
         log.warning("No audio files found.")
         sys.exit(0)
 
+    skipped = 0
+    processed = 0
     for audio_path in audio_files:
+        # Skip files that already have output unless --force or --only is used
+        out_path = output_dir / f"{audio_path.stem}.txt"
+        if out_path.exists() and not args.force and not args.only:
+            log.info("Skipping (output exists): %s", audio_path.name)
+            skipped += 1
+            continue
         try:
             process_file(audio_path, output_dir, steps=steps)
+            processed += 1
         except Exception as exc:
             log.error("Failed to process %s: %s", audio_path.name, exc)
             continue
 
-    log.info("Done. Processed %d file(s).", len(audio_files))
+    log.info("Done. Processed %d file(s), skipped %d.", processed, skipped)
 
 
 if __name__ == "__main__":
