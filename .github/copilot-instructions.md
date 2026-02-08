@@ -36,4 +36,5 @@ Do not introduce: source separation (Demucs), chord-detection models, GPU-only d
 
 ```sh
 python main.py <directory-of-audio-files>
+python main.py <single-audio-file>
 ```

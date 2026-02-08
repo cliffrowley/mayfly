@@ -258,23 +258,36 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Mayfly — scan audio files and generate memory-prompt Markdown.",
     )
-    parser.add_argument("directory", type=Path, help="Directory of audio files to scan")
+    parser.add_argument("path", type=Path, help="Audio file or directory to scan")
     parser.add_argument(
         "-o", "--output",
         type=Path,
         default=None,
-        help="Output directory for Markdown files (default: same as input)",
+        help="Output directory for Markdown files (default: same directory as input)",
     )
     args = parser.parse_args()
 
-    if not args.directory.is_dir():
-        log.error("Not a directory: %s", args.directory)
+    target = args.path
+
+    if not target.exists():
+        log.error("Path does not exist: %s", target)
         sys.exit(1)
 
-    output_dir = args.output or args.directory
+    if target.is_file():
+        if target.suffix.lower() not in AUDIO_EXTENSIONS:
+            log.warning("File may not be a supported audio format: %s", target.name)
+        audio_files = [target]
+        default_output_dir = target.parent
+    elif target.is_dir():
+        audio_files = discover_audio_files(target)
+        default_output_dir = target
+    else:
+        log.error("Not a file or directory: %s", target)
+        sys.exit(1)
+
+    output_dir = args.output or default_output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    audio_files = discover_audio_files(args.directory)
     if not audio_files:
         log.warning("No audio files found.")
         sys.exit(0)

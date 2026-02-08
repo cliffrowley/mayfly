@@ -37,9 +37,9 @@ Once a track is re‑learned, the output may never be used again.
 ### Execution Model
 
 * A **command‑line program**
-* Recursively scans a directory for audio files
+* Accepts a single audio file or recursively scans a directory
 * Processes each file independently
-* Emits **one Markdown file per audio file**
+* Emits **one `.txt` file (Markdown‑formatted) per audio file**
 
 No database. No UI. No service. No persistence beyond files on disk.
 
