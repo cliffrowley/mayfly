@@ -1,4 +1,4 @@
-# AI‑Assisted Archive Relearning (MVP)
+# Mayfly - AI‑Assisted Archive Relearning (MVP)
 
 ## Purpose
 
